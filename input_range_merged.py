@@ -29,17 +29,17 @@ def calculate_truck_range(
 
 
 # Function to plot range vs. elevation delta
-def plot_range_vs_elevation_delta():
-    battery_capacity = 500  # kWh
-    base_consumption = 1.2  # kWh/km
-    route_distance = 100  # km
-    payload_weight = 20  # tons
-    regen_efficiency = 0.7
-    aux_power = 10  # kWh
-    wind_adjustment = 5  # kWh
-    temp_adjustment = 5  # kWh
-    truck_empty_weight = 10  # tons
-    
+def plot_range_vs_elevation_delta(
+    battery_capacity=500,  # kWh
+    base_consumption=1.2,  # kWh/km
+    route_distance=100,  # km
+    payload_weight=20,  # tons
+    regen_efficiency=0.7,  # Fraction
+    aux_power=10,  # kWh
+    wind_adjustment=5,  # kWh
+    temp_adjustment=5,  # kWh,
+    truck_empty_weight=10  # tons
+):
     # Delta elevation range (-500 to +500 meters with step size of 10 meters)
     min_delta_elevation = -500
     max_delta_elevation = 500
@@ -87,21 +87,22 @@ mode = st.sidebar.selectbox(
     ("Manual Input Mode", "Plotting Mode")
 )
 
+# Inputs for manual calculation (shared by both modes)
+st.sidebar.header("Manual Inputs")
+battery_capacity = st.sidebar.number_input("Battery Capacity (kWh)", value=500.0, step=10.0)
+base_consumption = st.sidebar.number_input("Base Consumption (kWh/km)", value=1.2, step=0.1)
+route_distance = st.sidebar.number_input("Route Distance (km)", value=100.0, step=10.0)
+payload_weight = st.sidebar.number_input("Payload Weight (tons)", value=20.0, step=1.0)
+regen_efficiency = st.sidebar.number_input("Regenerative Efficiency (fraction)", value=0.7, step=0.05)
+aux_power = st.sidebar.number_input("Auxiliary Power Usage (kWh)", value=10.0, step=1.0)
+wind_adjustment = st.sidebar.number_input("Wind Adjustment (kWh)", value=5.0, step=1.0)
+temp_adjustment = st.sidebar.number_input("Temperature Adjustment (kWh)", value=5.0, step=1.0)
+truck_empty_weight = st.sidebar.number_input("Truck Empty Weight (tons)", value=10.0, step=1.0)
+
 if mode == "Manual Input Mode":
     st.header("Manual Input Mode")
-
-    # Inputs for manual calculation
-    battery_capacity = st.number_input("Battery Capacity (kWh)", value=500.0, step=10.0)
-    base_consumption = st.number_input("Base Consumption (kWh/km)", value=1.2, step=0.1)
-    route_distance = st.number_input("Route Distance (km)", value=100.0, step=10.0)
-    payload_weight = st.number_input("Payload Weight (tons)", value=20.0, step=1.0)
     elevation_gain = st.number_input("Elevation Gain (meters)", value=500.0, step=50.0)
     elevation_loss = st.number_input("Elevation Loss (meters)", value=300.0, step=50.0)
-    regen_efficiency = st.number_input("Regenerative Efficiency (fraction)", value=0.7, step=0.05)
-    aux_power = st.number_input("Auxiliary Power Usage (kWh)", value=10.0, step=1.0)
-    wind_adjustment = st.number_input("Wind Adjustment (kWh)", value=5.0, step=1.0)
-    temp_adjustment = st.number_input("Temperature Adjustment (kWh)", value=5.0, step=1.0)
-    truck_empty_weight = st.number_input("Truck Empty Weight (tons)", value=10.0, step=1.0)
 
     if st.button("Calculate Range"):
         range_km = calculate_truck_range(
@@ -115,4 +116,14 @@ elif mode == "Plotting Mode":
     st.header("Plotting Mode")
     st.write("This mode visualizes the estimated range vs. elevation delta.")
     if st.button("Generate Plot"):
-        plot_range_vs_elevation_delta()
+        plot_range_vs_elevation_delta(
+            battery_capacity=battery_capacity,
+            base_consumption=base_consumption,
+            route_distance=route_distance,
+            payload_weight=payload_weight,
+            regen_efficiency=regen_efficiency,
+            aux_power=aux_power,
+            wind_adjustment=wind_adjustment,
+            temp_adjustment=temp_adjustment,
+            truck_empty_weight=truck_empty_weight,
+        )
