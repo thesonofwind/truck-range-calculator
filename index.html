@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Route Elevation & Energy Analysis</title>
+  <title>Route Elevation, Energy & Live Weather Analysis</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 1em; }
@@ -17,7 +17,7 @@
   </style>
 </head>
 <body>
-  <h1>Route Elevation & Energy Analysis</h1>
+  <h1>Route Elevation, Energy & Live Weather Analysis</h1>
 
   <div id="map"></div>
   <div>
@@ -56,13 +56,8 @@
         <input id="eff" name="eff" type="number" step="0.01" value="0.9"></div>
       <div><label for="regenEff">Regen. Eff. (0–1):</label>
         <input id="regenEff" name="regenEff" type="number" step="0.01" value="0.6"></div>
-      <div><label for="season">Season:</label>
-        <select id="season" name="season">
-          <option>Winter</option>
-          <option>Spring</option>
-          <option>Summer</option>
-          <option>Autumn</option>
-        </select></div>
+      <div><label for="apiKey">Weather API Key:</label>
+        <input id="apiKey" name="apiKey" type="text" placeholder="OpenWeatherMap Key"></div>
     </fieldset>
 
     <button type="submit">Analyze Route & Energy</button>
@@ -75,6 +70,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="energy.js"></script>
   <script src="weather.js"></script>
+  <script src="weather_api.js"></script>
 
   <script>
     // Leaflet map initialization
@@ -102,7 +98,7 @@
 
     // API calls and plotting
     async function getRouteWaypoints(sLat, sLon, eLat, eLon) {
-      const url = `https://router.project-osrm.org/route/v1/driving/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${sHon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
       const data = await res.json();
@@ -136,11 +132,10 @@
       chart = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets: [{ label: 'Elevation (m)', data: elevs, fill: false, tension: 0.1 }] },
-        options: { scales: { x: { title: { display: true, text: 'Waypoint Index' } }, y: { title: { display: true, text: 'Elevation (m)' } } } }
+        options: { scales: { x: { title: { display: true, text: 'Waypoint Index' } }, y: { title: { display: true, text: 'Elevation (m' } } } }
       });
     }
 
-    // Form submission handler
     document.getElementById('route-form').addEventListener('submit', async e => {
       e.preventDefault();
       const sLat = +e.target['start-lat'].value;
@@ -157,13 +152,14 @@
         eff: +e.target['eff'].value,
         regenEff: +e.target['regenEff'].value
       };
-      const season = e.target['season'].value;
+      const apiKey = e.target['apiKey'].value;
       const out = document.getElementById('results'); out.innerHTML = '<p>Analyzing...</p>';
       try {
         const wpts = await getRouteWaypoints(sLat, sLon, eLat, eLon);
         routeLine && map.removeLayer(routeLine);
         routeLine = L.polyline(wpts, { color: 'blue', weight: 4 }).addTo(map);
         map.fitBounds(routeLine.getBounds());
+
         out.innerHTML = `<p>Waypoints: ${wpts.length}</p>`;
         const elevs = await getElevations(wpts);
         out.innerHTML += `<p>Elevations: ${elevs.length}</p>`;
@@ -171,21 +167,24 @@
         out.innerHTML += `<p>Gain: ${gain.toFixed(1)} m, Loss: ${loss.toFixed(1)} m</p>`;
 
         const base = calculateEnergy(wpts, elevs, params);
-        const weather = getSeasonalWeather(season);
-        const factor = calculateWeatherImpact(weather);
-        const adjTotal = base.Ejoules * factor;
+        // Fetch live weather along route
+        const weather = await getRouteWeather(wpts, apiKey);
+        const factorWeather = calculateWeatherImpact(weather);
+        const adjTotal = base.Ejoules * factorWeather;
         const dist_km = base.distance_m / 1000;
         const total_kWh = adjTotal / 3.6e6;
         const cpkm = (total_kWh / dist_km).toFixed(3);
 
-        out.innerHTML += `<p>Season: ${season}</p>` +
-                         `<p>Temp: ${weather.temp} °C, Rain: ${weather.precipitation} mm, Snow: ${weather.snow} mm, Wind: ${weather.wind} m/s</p>` +
-                         `<p>Total Energy (weather): ${total_kWh.toFixed(2)} kWh</p>` +
-                         `<p><strong>Consumption:</strong> ${cpkm} kWh/km</p>`;
+        out.innerHTML += `<p>Avg Temp: ${weather.temp.toFixed(1)} °C, ` +
+                         `Rain: ${weather.precipitation.toFixed(1)} mm, ` +
+                         `Snow: ${weather.snow.toFixed(1)} mm, ` +
+                         `Wind: ${weather.wind.toFixed(1)} m/s</p>`;
+        out.innerHTML += `<p>Total Energy (weather): ${total_kWh.toFixed(2)} kWh</p>`;
+        out.innerHTML += `<p><strong>Consumption:</strong> ${cpkm} kWh/km</p>`;
 
         plotElevation(elevs);
-      } catch (err) {
-        out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+      } catch(err) {
+        out.innerHTML = `<p style=\"color:red\">Error: ${err.message}</p>`;
         console.error(err);
       }
     });
