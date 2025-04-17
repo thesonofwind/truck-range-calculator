@@ -3,16 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>Route Elevation Analysis</title>
-  <!-- Leaflet CSS -->
+
+  <!-- Leaflet CSS (no integrity) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-sA+e2R5Ew+6Pow65S+rMghO+rFUSK5yA7uwM6z8aJjc="
-    crossorigin=""
   />
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 1em; }
-    #map { height: 400px; margin-bottom: 1em; }
+    #map { width: 100%; height: 400px; margin-bottom: 1em; }
     form div { margin-bottom: 0.5em; }
     label { display: inline-block; width: 140px; }
     #results p { margin: 0.2em 0; }
@@ -25,8 +24,14 @@
   <!-- Map -->
   <div id="map"></div>
   <div>
-    <label><input type="radio" name="mode" value="start" checked> Select Start</label>
-    <label><input type="radio" name="mode" value="end"> Select End</label>
+    <label>
+      <input type="radio" name="mode" value="start" checked>
+      Select Start
+    </label>
+    <label>
+      <input type="radio" name="mode" value="end">
+      Select End
+    </label>
   </div>
 
   <!-- Coordinate form -->
@@ -53,80 +58,87 @@
   <div id="results"></div>
   <canvas id="elevationChart" width="800" height="400"></canvas>
 
-  <!-- Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-F7/pY8FjKnEw1puRaRuHe/IkEeyfuvezBth1Pjv6o5Q="
-    crossorigin=""
-  ></script>
+  <!-- Leaflet JS (no integrity) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Chart.js for plotting -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
-    // --- Map setup ---
+    // --- Leaflet map setup ---
     const map = L.map('map').setView([37.7749, -122.4194], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     let startMarker, endMarker;
-
     map.on('click', e => {
       const { lat, lng } = e.latlng;
       const mode = document.querySelector('input[name="mode"]:checked').value;
       if (mode === 'start') {
         if (startMarker) map.removeLayer(startMarker);
-        startMarker = L.marker([lat, lng]).addTo(map).bindPopup('Start').openPopup();
+        startMarker = L.marker([lat, lng]).addTo(map)
+                        .bindPopup('Start').openPopup();
         document.getElementById('start-lat').value = lat.toFixed(6);
         document.getElementById('start-lon').value = lng.toFixed(6);
       } else {
         if (endMarker) map.removeLayer(endMarker);
-        endMarker = L.marker([lat, lng]).addTo(map).bindPopup('End').openPopup();
+        endMarker = L.marker([lat, lng]).addTo(map)
+                      .bindPopup('End').openPopup();
         document.getElementById('end-lat').value = lat.toFixed(6);
         document.getElementById('end-lon').value = lng.toFixed(6);
       }
     });
 
     // --- API & plotting functions ---
-    async function getRouteWaypoints(startLat, startLon, endLat, endLon) {
+    async function getRouteWaypoints(sLat, sLon, eLat, eLon) {
       const url = `https://router.project-osrm.org/route/v1/driving/`
-        + `${startLon},${startLat};${endLon},${endLat}`
-        + `?overview=full&geometries=geojson`;
+                + `${sLon},${sLat};${eLon},${eLat}`
+                + `?overview=full&geometries=geojson`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
-      const json = await res.json();
-      return json.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+      const data = await res.json();
+      return data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
     }
 
     async function getElevations(waypoints) {
-      const locations = waypoints.map(([lat,lon])=>({ latitude: lat, longitude: lon }));
+      const locations = waypoints.map(([lat,lon]) => ({
+        latitude: lat, longitude: lon
+      }));
       const res = await fetch('https://api.open-elevation.com/api/v1/lookup', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ locations })
       });
       if (!res.ok) throw new Error(`Elevation API error: ${res.status}`);
-      const json = await res.json();
-      return json.results.map(r=>r.elevation);
+      const data = await res.json();
+      return data.results.map(r => r.elevation);
     }
 
-    function calculateGainLoss(elevations) {
-      let gain = 0, loss = 0;
-      for (let i = 1; i < elevations.length; i++) {
-        const d = elevations[i] - elevations[i-1];
+    function calculateGainLoss(elevs) {
+      let gain=0, loss=0;
+      for (let i=1; i<elevs.length; i++){
+        const d = elevs[i] - elevs[i-1];
         if (d>0) gain += d; else loss += Math.abs(d);
       }
       return { gain, loss };
     }
 
     let chart;
-    function plotElevation(elevations) {
+    function plotElevation(elevs) {
       const ctx = document.getElementById('elevationChart').getContext('2d');
-      const labels = elevations.map((_,i)=>i);
+      const labels = elevs.map((_,i) => i);
       if (chart) chart.destroy();
       chart = new Chart(ctx, {
         type: 'line',
-        data: { labels, datasets: [{ label:'Elevation (m)', data:elevations, fill:false, tension:0.1 }] },
+        data: {
+          labels,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: elevs,
+            fill: false,
+            tension: 0.1
+          }]
+        },
         options: {
           scales: {
             x: { title:{ display:true, text:'Waypoint Index' } },
@@ -136,27 +148,28 @@
       });
     }
 
-    // --- Form submission ---
-    document.getElementById('route-form').addEventListener('submit', async e => {
+    // --- Form submission handler ---
+    document.getElementById('route-form')
+      .addEventListener('submit', async e => {
       e.preventDefault();
-      const startLat = parseFloat(e.target['start-lat'].value);
-      const startLon = parseFloat(e.target['start-lon'].value);
-      const endLat   = parseFloat(e.target['end-lat'].value);
-      const endLon   = parseFloat(e.target['end-lon'].value);
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = `<p>Fetching route...</p>`;
+      const sLat = parseFloat(e.target['start-lat'].value);
+      const sLon = parseFloat(e.target['start-lon'].value);
+      const eLat = parseFloat(e.target['end-lat'].value);
+      const eLon = parseFloat(e.target['end-lon'].value);
+      const out = document.getElementById('results');
+      out.innerHTML = '<p>Fetching route…</p>';
 
       try {
-        const waypoints = await getRouteWaypoints(startLat,startLon,endLat,endLon);
-        resultsDiv.innerHTML = `<p>Waypoints fetched: ${waypoints.length}</p>`;
-        const elevations = await getElevations(waypoints);
-        resultsDiv.innerHTML += `<p>Elevations points: ${elevations.length}</p>`;
-        const { gain, loss } = calculateGainLoss(elevations);
-        resultsDiv.innerHTML += `<p>Total Gain: ${gain.toFixed(2)} m</p>`
-                              + `<p>Total Loss: ${loss.toFixed(2)} m</p>`;
-        plotElevation(elevations);
-      } catch (err) {
-        resultsDiv.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+        const waypoints = await getRouteWaypoints(sLat,sLon,eLat,eLon);
+        out.innerHTML = `<p>Waypoints fetched: ${waypoints.length}</p>`;
+        const elevs = await getElevations(waypoints);
+        out.innerHTML += `<p>Elevation points: ${elevs.length}</p>`;
+        const { gain, loss } = calculateGainLoss(elevs);
+        out.innerHTML += `<p>Total Gain: ${gain.toFixed(2)} m</p>`
+                      + `<p>Total Loss: ${loss.toFixed(2)} m</p>`;
+        plotElevation(elevs);
+      } catch(err) {
+        out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
       }
     });
   </script>
