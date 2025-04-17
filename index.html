@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Route Elevation Analysis</title>
+  <title>Route Elevation & Energy Analysis</title>
 
   <!-- Leaflet CSS (no integrity) -->
   <link
@@ -19,7 +19,7 @@
   </style>
 </head>
 <body>
-  <h1>Route Elevation Analysis</h1>
+  <h1>Route Elevation & Energy Analysis</h1>
 
   <!-- Map + Mode Selector -->
   <div id="map"></div>
@@ -52,10 +52,10 @@
   <div id="results"></div>
   <canvas id="elevationChart" width="800" height="400"></canvas>
 
-  <!-- Leaflet JS (no integrity) -->
+  <!-- External Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="energy.js"></script>
 
   <script>
     // --- Leaflet map setup ---
@@ -66,7 +66,6 @@
 
     let startMarker, endMarker, routeLine;
 
-    // Click to place start/end markers
     map.on('click', e => {
       const { lat, lng } = e.latlng;
       const mode = document.querySelector('input[name="mode"]:checked').value;
@@ -165,6 +164,16 @@
         const { gain, loss } = calculateGainLoss(elevs);
         out.innerHTML += `<p>Total Gain: ${gain.toFixed(2)} m</p>`
                       + `<p>Total Loss: ${loss.toFixed(2)} m</p>`;
+
+        // --- Energy calculation (from energy.js) ---
+        const res = calculateEnergy(waypoints, elevs, {
+          mass: 30000,         // default truck mass (kg) :contentReference[oaicite:0]{index=0}
+          speed: 20            // 20 m/s (~72 km/h)
+        });
+        const kWh = res.Ejoules / 3.6e6;
+        const km = (res.distance_m / 1000).toFixed(1);
+        out.innerHTML += `<p>Est. Energy: ${kWh.toFixed(2)} kWh over ${km} km</p>`;
+
         plotElevation(elevs);
       } catch(err) {
         out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
