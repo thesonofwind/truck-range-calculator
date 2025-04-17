@@ -3,7 +3,7 @@
 (function(window) {
   /**
    * Fetch historical climate normals (1991–2020) for a single lat/lon via Open‑Meteo API
-   * Returns full monthly array with fields: month, tavg, prcp_norm, snow_norm, wspd_norm
+   * Returns data.monthly array with fields month, temperature_2m_mean, precipitation_sum, snowfall_sum, windspeed_10m_mean
    */
   async function fetchClimateNormals(lat, lon) {
     const url =
@@ -21,8 +21,8 @@
 
   /**
    * Compute average normals for the route and selected month
-   * @param {Array} waypoints  Array of [lat, lon]
-   * @param {number} month     Integer 1–12
+   * @param {Array<[lat,lon]>} waypoints
+   * @param {number} month 1–12
    * @returns {Promise<{temp, precipitation, snow, wind}>}
    */
   async function getRouteClimate(waypoints, month) {
@@ -36,10 +36,10 @@
       const monthly = await fetchClimateNormals(lat, lon);
       const entry = monthly.find(m => m.month === month);
       if (entry) {
-        acc.temp          += entry.tavg      || 0;
-        acc.precipitation += entry.prcp_norm || 0;
-        acc.snow          += entry.snow_norm || 0;
-        acc.wind          += entry.wspd_norm || 0;
+        acc.temp          += entry.temperature_2m_mean   || 0;
+        acc.precipitation += entry.precipitation_sum     || 0;
+        acc.snow          += entry.snowfall_sum          || 0;
+        acc.wind          += entry.windspeed_10m_mean    || 0;
         cnt++;
       }
     }
