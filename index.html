@@ -2,22 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Route Elevation, Energy & Live Weather Analysis</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>Route Elevation & Energy Analysis</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 1em; }
     #map { width: 100%; height: 400px; margin-bottom: 1em; }
-    form div { margin-bottom: 0.8em; }
-    label { display: inline-block; width: 180px; }
-    input[type="number"], select { width: 120px; }
-    #results p { margin: 0.2em 0; }
-    #elevationChart { margin-top: 1em; }
     fieldset { border: 1px solid #ccc; padding: 0.8em; margin-top: 1em; }
     legend { font-weight: bold; }
+    form div { margin-bottom: 0.8em; }
+    label { display: inline-block; width: 180px; }
+    input[type="number"] { width: 120px; }
+    #results p { margin: 0.2em 0; }
+    #elevationChart { margin-top: 1em; }
   </style>
 </head>
 <body>
-  <h1>Route Elevation, Energy & Live Weather Analysis</h1>
+  <h1>Route Elevation & Energy Analysis</h1>
 
   <div id="map"></div>
   <div>
@@ -39,11 +39,12 @@
     </fieldset>
 
     <fieldset>
-      <legend>Energy & Weather Settings</legend>
+      <legend>Truck Energy Parameters</legend>
       <div><label for="mass">Mass (kg):</label>
         <input id="mass" name="mass" type="number" step="1" value="30000"></div>
       <div><label for="speed_kmh">Speed (km/h):</label>
-        <input id="speed_kmh" name="speed_kmh" type="number" step="0.1" value="72"></div>
+        <input id="speed_kmh" name="speed_kmh" type="number" step="0.1" value="72">
+        <small>(converted internally to m/s)</small></div>
       <div><label for="Crr">Rolling Resistance (Crr):</label>
         <input id="Crr" name="Crr" type="number" step="0.001" value="0.007"></div>
       <div><label for="Cd">Drag Coefficient (Cd):</label>
@@ -54,10 +55,8 @@
         <input id="rho" name="rho" type="number" step="0.01" value="1.225"></div>
       <div><label for="eff">Drivetrain Eff. (0–1):</label>
         <input id="eff" name="eff" type="number" step="0.01" value="0.9"></div>
-      <div><label for="regenEff">Regen. Eff. (0–1):</label>
+      <div><label for="regenEff">Regen Eff. (0–1):</label>
         <input id="regenEff" name="regenEff" type="number" step="0.01" value="0.6"></div>
-      <div><label for="apiKey">Weather API Key:</label>
-        <input id="apiKey" name="apiKey" type="text" placeholder="OpenWeatherMap Key"></div>
     </fieldset>
 
     <button type="submit">Analyze Route & Energy</button>
@@ -70,14 +69,15 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="energy.js"></script>
   <script src="weather.js"></script>
-  <script src="weather_api.js"></script>
+  <script src="climate_api.js"></script>
 
   <script>
-    // Leaflet map initialization
+    // Initialize Leaflet map
     const map = L.map('map').setView([37.7749, -122.4194], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+
     let startMarker, endMarker, routeLine;
 
     map.on('click', e => {
@@ -85,106 +85,85 @@
       const mode = document.querySelector('input[name="mode"]:checked').value;
       if (mode === 'start') {
         startMarker && map.removeLayer(startMarker);
-        startMarker = L.marker([lat, lng]).addTo(map).bindPopup('Start').openPopup();
+        startMarker = L.marker([lat, lng]).addTo(map)
+                          .bindPopup('Start').openPopup();
         document.getElementById('start-lat').value = lat.toFixed(6);
         document.getElementById('start-lon').value = lng.toFixed(6);
       } else {
         endMarker && map.removeLayer(endMarker);
-        endMarker = L.marker([lat, lng]).addTo(map).bindPopup('End').openPopup();
+        endMarker = L.marker([lat, lng]).addTo(map)
+                        .bindPopup('End').openPopup();
         document.getElementById('end-lat').value = lat.toFixed(6);
         document.getElementById('end-lon').value = lng.toFixed(6);
       }
     });
 
-    // API calls and plotting
-    async function getRouteWaypoints(sLat, sLon, eLat, eLon) {
-      const url = `https://router.project-osrm.org/route/v1/driving/${sHon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
+    // Utility & API functions (exact same as in external files)
+    async function getRouteWaypoints(sLat,sLon,eLat,eLon) {
+      const url = `https://router.project-osrm.org/route/v1/driving/` +
+                  `${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
       const data = await res.json();
       return data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
     }
-
     async function getElevations(waypoints) {
-      const locations = waypoints.map(([lat, lon]) => ({ latitude: lat, longitude: lon }));
+      const locations = waypoints.map(([lat,lon]) => ({ latitude: lat, longitude: lon }));
       const res = await fetch('https://api.open-elevation.com/api/v1/lookup', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ locations })
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ locations })
       });
       if (!res.ok) throw new Error(`Elevation API error: ${res.status}`);
       const data = await res.json();
       return data.results.map(r => r.elevation);
     }
-
     function calculateGainLoss(elevs) {
-      let gain = 0, loss = 0;
-      for (let i = 1; i < elevs.length; i++) {
+      let gain=0, loss=0;
+      for (let i=1; i<elevs.length; i++) {
         const d = elevs[i] - elevs[i-1];
-        if (d > 0) gain += d; else loss += Math.abs(d);
+        if(d>0) gain+=d; else loss+=Math.abs(d);
       }
       return { gain, loss };
     }
-
     let chart;
     function plotElevation(elevs) {
       const ctx = document.getElementById('elevationChart').getContext('2d');
-      const labels = elevs.map((_, i) => i);
-      if (chart) chart.destroy();
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: { labels, datasets: [{ label: 'Elevation (m)', data: elevs, fill: false, tension: 0.1 }] },
-        options: { scales: { x: { title: { display: true, text: 'Waypoint Index' } }, y: { title: { display: true, text: 'Elevation (m' } } } }
-      });
+      const labels = elevs.map((_,i)=>i);
+      if(chart) chart.destroy();
+      chart = new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Elevation (m)', data:elevs, fill:false, tension:0.1 }]}, options:{ scales:{ x:{ title:{ display:true, text:'Waypoint Index' } }, y:{ title:{ display:true, text:'Elevation (m)' } } } } });
     }
 
     document.getElementById('route-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const sLat = +e.target['start-lat'].value;
-      const sLon = +e.target['start-lon'].value;
-      const eLat = +e.target['end-lat'].value;
-      const eLon = +e.target['end-lon'].value;
-      const params = {
-        mass: +e.target['mass'].value,
-        speed_kmh: +e.target['speed_kmh'].value,
-        Crr: +e.target['Crr'].value,
-        Cd: +e.target['Cd'].value,
-        A: +e.target['A'].value,
-        rho: +e.target['rho'].value,
-        eff: +e.target['eff'].value,
-        regenEff: +e.target['regenEff'].value
-      };
-      const apiKey = e.target['apiKey'].value;
-      const out = document.getElementById('results'); out.innerHTML = '<p>Analyzing...</p>';
+      const sLat=+e.target['start-lat'].value, sLon=+e.target['start-lon'].value;
+      const eLat=+e.target['end-lat'].value,   eLon=+e.target['end-lon'].value;
+      const params={ mass:+e.target['mass'].value, speed_kmh:+e.target['speed_kmh'].value, Crr:+e.target['Crr'].value, Cd:+e.target['Cd'].value, A:+e.target['A'].value, rho:+e.target['rho'].value, eff:+e.target['eff'].value, regenEff:+e.target['regenEff'].value };
+      const out=document.getElementById('results'); out.innerHTML='<p>Fetching route…</p>';
       try {
-        const wpts = await getRouteWaypoints(sLat, sLon, eLat, eLon);
-        routeLine && map.removeLayer(routeLine);
-        routeLine = L.polyline(wpts, { color: 'blue', weight: 4 }).addTo(map);
+        const wpts=await getRouteWaypoints(sLat,sLon,eLat,eLon);
+        /* draw polyline */
+        routeLine&&map.removeLayer(routeLine);
+        routeLine=L.polyline(wpts,{color:'blue',weight:4}).addTo(map);
         map.fitBounds(routeLine.getBounds());
-
-        out.innerHTML = `<p>Waypoints: ${wpts.length}</p>`;
-        const elevs = await getElevations(wpts);
-        out.innerHTML += `<p>Elevations: ${elevs.length}</p>`;
-        const { gain, loss } = calculateGainLoss(elevs);
-        out.innerHTML += `<p>Gain: ${gain.toFixed(1)} m, Loss: ${loss.toFixed(1)} m</p>`;
-
-        const base = calculateEnergy(wpts, elevs, params);
-        // Fetch live weather along route
-        const weather = await getRouteWeather(wpts, apiKey);
-        const factorWeather = calculateWeatherImpact(weather);
-        const adjTotal = base.Ejoules * factorWeather;
-        const dist_km = base.distance_m / 1000;
-        const total_kWh = adjTotal / 3.6e6;
-        const cpkm = (total_kWh / dist_km).toFixed(3);
-
-        out.innerHTML += `<p>Avg Temp: ${weather.temp.toFixed(1)} °C, ` +
-                         `Rain: ${weather.precipitation.toFixed(1)} mm, ` +
-                         `Snow: ${weather.snow.toFixed(1)} mm, ` +
-                         `Wind: ${weather.wind.toFixed(1)} m/s</p>`;
-        out.innerHTML += `<p>Total Energy (weather): ${total_kWh.toFixed(2)} kWh</p>`;
-        out.innerHTML += `<p><strong>Consumption:</strong> ${cpkm} kWh/km</p>`;
-
+        out.innerHTML=`<p>Waypoints: ${wpts.length}</p>`;
+        const elevs=await getElevations(wpts);
+        out.innerHTML+=`<p>Elevations: ${elevs.length}</p>`;
+        const{gain,loss}=calculateGainLoss(elevs);
+        out.innerHTML+=`<p>Gain: ${gain.toFixed(1)}m, Loss: ${loss.toFixed(1)}m</p>`;
+        /* energy */
+        const base=calculateEnergy(wpts,elevs,params);
+        /* climate normals */
+        const climate=await getRouteClimate(wpts);
+        out.innerHTML+=`<p>Avg Temp: ${climate.temp.toFixed(1)}°C, Precip: ${climate.precipitation.toFixed(1)}mm, Snow: ${climate.snow.toFixed(1)}mm, Wind: ${climate.wind.toFixed(1)}m/s</p>`;
+        const weatherFactor=calculateWeatherImpact(climate);
+        const adjEj=base.Ejoules*weatherFactor;
+        const total_kWh=adjEj/3.6e6;
+        const km=base.distance_m/1000;
+        const cpkm=(total_kWh/km).toFixed(3);
+        out.innerHTML+=`<p>Climate‐Adjusted Energy: ${total_kWh.toFixed(2)} kWh</p>`;
+        out.innerHTML+=`<p><strong>Consumption:</strong> ${cpkm} kWh/km</p>`;
         plotElevation(elevs);
       } catch(err) {
-        out.innerHTML = `<p style=\"color:red\">Error: ${err.message}</p>`;
+        out.innerHTML=`<p style="color:red">Error: ${err.message}</p>`;
         console.error(err);
       }
     });
