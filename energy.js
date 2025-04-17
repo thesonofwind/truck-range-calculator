@@ -1,10 +1,10 @@
 // energy.js
 
 (function(window) {
-  // Haversine formula to compute distance between two [lat,lon] in meters
+  // Haversine formula for distance between two coordinates (meters)
   function haversine(lat1, lon1, lat2, lon2) {
     const toRad = x => x * Math.PI / 180;
-    const R = 6371000; // Earth radius in meters
+    const R = 6371000;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a = Math.sin(dLat/2) ** 2 +
@@ -19,14 +19,17 @@
     for (let i = 1; i < waypoints.length; i++) {
       d += haversine(
         waypoints[i-1][0], waypoints[i-1][1],
-        waypoints[i][0], waypoints[i][1]
+        waypoints[i][0],   waypoints[i][1]
       );
     }
     return d;
   }
 
   /**
-   * Calculate base energy consumption (J) without weather.
+   * Calculate base energy consumption (Joules) without weather
+   * @param {Array} waypoints [[lat,lon],...]
+   * @param {Array} elevations [e0,e1,...]
+   * @param {Object} opts {mass, speed_kmh, Crr, Cd, A, rho, eff, regenEff}
    */
   function calculateEnergy(waypoints, elevations, opts = {}) {
     const p = {
@@ -36,7 +39,7 @@
       Cd: opts.Cd || 0.6,
       A: opts.A || 8,
       rho: opts.rho || 1.225,
-      speed: ((opts.speed_kmh || 72) / 3.6),
+      speed: (opts.speed_kmh || 72) / 3.6,
       eff: opts.eff || 0.9,
       regenEff: opts.regenEff != null ? opts.regenEff : 0.6
     };
@@ -56,9 +59,9 @@
 
     const kWh = Etotal / 3.6e6;
     const km = D / 1000;
-    const kWhpkm = kWh / km;
+    const kWh_per_km = kWh / km;
 
-    return { Ejoules: Etotal, distance_m: D, kWh_per_km: kWhpkm, params: p };
+    return { Ejoules: Etotal, distance_m: D, kWh_per_km, params: p };
   }
 
   window.calculateEnergy = calculateEnergy;
