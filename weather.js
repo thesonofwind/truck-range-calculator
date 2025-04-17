@@ -2,15 +2,15 @@
 
 (function(window) {
   /**
-   * Calculate weather impact multiplier from climate normals.
+   * Compute weather impact multiplier from climate normals.
    * climate: {temp, precipitation, snow, wind}
    */
   function calculateWeatherImpact(climate) {
     const tempDeficit = Math.max(0, 20 - climate.temp);
-    const tempFactor   = 1 + tempDeficit * 0.005;
-    const rainFactor   = 1 + (climate.precipitation / 10) * 0.01;
-    const snowFactor   = 1 + (climate.snow / 10) * 0.02;
-    const windFactor   = 1 + climate.wind * 0.01;
+    const tempFactor   = 1 + 0.005 * tempDeficit;
+    const rainFactor   = 1 + 0.01 * (climate.precipitation / 10);
+    const snowFactor   = 1 + 0.02 * (climate.snow / 10);
+    const windFactor   = 1 + 0.01 * climate.wind;
     return tempFactor * rainFactor * snowFactor * windFactor;
   }
 

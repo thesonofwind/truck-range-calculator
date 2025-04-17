@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Route Elevation & Climate‑Aware Energy</title>
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 1em; }
     #map { width: 100%; height: 400px; margin-bottom: 1em; }
@@ -46,18 +43,12 @@
       <legend>Historical Climate Settings</legend>
       <div><label for="month">Month:</label>
         <select id="month">
-          <option value="1">January</option>
-          <option value="2">February</option>
-          <option value="3">March</option>
-          <option value="4">April</option>
-          <option value="5">May</option>
-          <option value="6">June</option>
-          <option value="7">July</option>
-          <option value="8">August</option>
-          <option value="9">September</option>
-          <option value="10">October</option>
-          <option value="11">November</option>
-          <option value="12">December</option>
+          <option value="1">January</option><option value="2">February</option>
+          <option value="3">March</option><option value="4">April</option>
+          <option value="5">May</option><option value="6">June</option>
+          <option value="7">July</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
         </select>
       </div>
     </fieldset>
@@ -91,7 +82,7 @@
   <!-- External Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Project Scripts: must load in this order -->
+  <!-- Project Scripts -->
   <script src="energy.js"></script>
   <script src="weather.js"></script>
   <script src="climate_api.js"></script>
@@ -120,7 +111,7 @@
       }
     });
 
-    document.getElementById("route-form").addEventListener("submit", async e => {
+    document.getElementById("route-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const sLat = +document.getElementById("start-lat").value;
       const sLon = +document.getElementById("start-lon").value;
@@ -137,12 +128,17 @@
         eff:       +document.getElementById("eff").value,
         regenEff:  +document.getElementById("regenEff").value
       };
+
       const out = document.getElementById("results");
       out.innerHTML = "<p>Calculating…</p>";
 
       try {
-        // 1) Get route
-        const rRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`);
+        // Fetch route
+        const rRes = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/` +
+          `${sLon},${sLat};${eLon},${eLat}` +
+          `?overview=full&geometries=geojson`
+        );
         if (!rRes.ok) throw new Error(`OSRM error: ${rRes.status}`);
         const rData = await rRes.json();
         const waypoints = rData.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
@@ -152,47 +148,65 @@
         routeLine = L.polyline(waypoints, { color: "blue", weight: 4 }).addTo(map);
         map.fitBounds(routeLine.getBounds());
 
-        // 2) Get elevations
+        // Fetch elevations
         const eRes = await fetch("https://api.open-elevation.com/api/v1/lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locations: waypoints.map(([lat, lon]) => ({ latitude: lat, longitude: lon })) })
+          body: JSON.stringify({
+            locations: waypoints.map(([lat, lon]) => ({ latitude: lat, longitude: lon }))
+          })
         });
         if (!eRes.ok) throw new Error(`Elevation error: ${eRes.status}`);
         const eData = await eRes.json();
         const elevations = eData.results.map(r => r.elevation);
 
-        // Calculate gain/loss
+        // Gain/Loss
         let gain = 0, loss = 0;
         for (let i = 1; i < elevations.length; i++) {
           const d = elevations[i] - elevations[i - 1];
           if (d > 0) gain += d; else loss += Math.abs(d);
         }
-        out.innerHTML = `<p>Waypoints: ${waypoints.length}</p><p>Gain: ${gain.toFixed(1)} m, Loss: ${loss.toFixed(1)} m</p>`;
+        out.innerHTML = `<p>Waypoints: ${waypoints.length}</p>` +
+                        `<p>Gain: ${gain.toFixed(1)} m, Loss: ${loss.toFixed(1)} m</p>`;
 
-        // 3) Base energy
+        // Base energy
         const base = calculateEnergy(waypoints, elevations, params);
 
-        // 4) Historical climate normals
+        // Historical climate normals
         const climate = await getRouteClimate(waypoints, month);
-        out.innerHTML += `<p>Month ${month} Avg: ${climate.temp.toFixed(1)}°C, ${climate.precipitation.toFixed(1)} mm rain, ${climate.snow.toFixed(1)} mm snow, ${climate.wind.toFixed(1)} m/s wind</p>`;
+        out.innerHTML += `<p>Month ${month} Avg: ${climate.temp.toFixed(1)}°C, `
+                      + `${climate.precipitation.toFixed(1)} mm rain, `
+                      + `${climate.snow.toFixed(1)} mm snow, `
+                      + `${climate.wind.toFixed(1)} m/s wind</p>`;
 
-        // 5) Weather impact
+        // Weather impact
         const factor = calculateWeatherImpact(climate);
         const adjustedJ = base.Ejoules * factor;
-        const totalKwh = adjustedJ / 3.6e6;
-        const distKm = base.distance_m / 1000;
-        const cpkm = (totalKwh / distKm).toFixed(3);
-        out.innerHTML += `<p>Adjusted Energy: ${totalKwh.toFixed(2)} kWh</p><p><strong>Consumption:</strong> ${cpkm} kWh/km</p>`;
+        const adjustedKwh = adjustedJ / 3.6e6;
 
-        // 6) Plot elevation
+        // HVAC load (kW) by month: heating Nov–Mar, cooling Apr–Oct
+        const P_HVAC_kW = (month <= 3 || month >= 11) ? 8 : 3;
+        const dist_m = base.distance_m;
+        const avgSpeed_ms = (params.speed_kmh * 1000) / 3600;
+        const time_h = (dist_m / avgSpeed_ms) / 3600;
+        const HVAC_kwh = P_HVAC_kW * time_h;
+
+        // Total energy & consumption
+        const totalKwh = adjustedKwh + HVAC_kwh;
+        const cpkm = (totalKwh / (dist_m / 1000)).toFixed(3);
+
+        out.innerHTML += `<p>Drivetrain Energy: ${adjustedKwh.toFixed(2)} kWh</p>` +
+                         `<p>HVAC Energy: ${HVAC_kwh.toFixed(2)} kWh</p>` +
+                         `<p><strong>Total Consumption:</strong> ${cpkm} kWh/km</p>`;
+
+        // Elevation plot
         const ctx = document.getElementById("elevationChart").getContext("2d");
         const labels = elevations.map((_, i) => i);
         if (chart) chart.destroy();
         chart = new Chart(ctx, {
           type: "line",
-          data: { labels, datasets: [{ label: "Elevation (m)", data: elevations, fill: false, tension: 0.1 }] },
-          options: { scales: { x: { title: { display: true, text: "Waypoint Index" } }, y: { title: { display: true, text: "Elevation (m)" } } } }
+          data: { labels, datasets:[{ label:"Elevation (m)", data:elevations, fill:false, tension:0.1 }] },
+          options:{ scales:{ x:{ title:{ display:true, text:"Waypoint Index" } }, y:{ title:{ display:true, text:"Elevation (m)" } } } }
         });
       } catch (err) {
         out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
