@@ -21,20 +21,14 @@
 <body>
   <h1>Route Elevation Analysis</h1>
 
-  <!-- Map -->
+  <!-- Map + Mode Selector -->
   <div id="map"></div>
   <div>
-    <label>
-      <input type="radio" name="mode" value="start" checked>
-      Select Start
-    </label>
-    <label>
-      <input type="radio" name="mode" value="end">
-      Select End
-    </label>
+    <label><input type="radio" name="mode" value="start" checked> Select Start</label>
+    <label><input type="radio" name="mode" value="end"> Select End</label>
   </div>
 
-  <!-- Coordinate form -->
+  <!-- Coordinate Inputs -->
   <form id="route-form">
     <div>
       <label for="start-lat">Start Latitude:</label>
@@ -60,7 +54,7 @@
 
   <!-- Leaflet JS (no integrity) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Chart.js for plotting -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
@@ -70,20 +64,20 @@
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    let startMarker, endMarker;
+    let startMarker, endMarker, routeLine;
+
+    // Click to place start/end markers
     map.on('click', e => {
       const { lat, lng } = e.latlng;
       const mode = document.querySelector('input[name="mode"]:checked').value;
       if (mode === 'start') {
-        if (startMarker) map.removeLayer(startMarker);
-        startMarker = L.marker([lat, lng]).addTo(map)
-                        .bindPopup('Start').openPopup();
+        startMarker && map.removeLayer(startMarker);
+        startMarker = L.marker([lat, lng]).addTo(map).bindPopup('Start').openPopup();
         document.getElementById('start-lat').value = lat.toFixed(6);
         document.getElementById('start-lon').value = lng.toFixed(6);
       } else {
-        if (endMarker) map.removeLayer(endMarker);
-        endMarker = L.marker([lat, lng]).addTo(map)
-                      .bindPopup('End').openPopup();
+        endMarker && map.removeLayer(endMarker);
+        endMarker = L.marker([lat, lng]).addTo(map).bindPopup('End').openPopup();
         document.getElementById('end-lat').value = lat.toFixed(6);
         document.getElementById('end-lon').value = lng.toFixed(6);
       }
@@ -101,9 +95,7 @@
     }
 
     async function getElevations(waypoints) {
-      const locations = waypoints.map(([lat,lon]) => ({
-        latitude: lat, longitude: lon
-      }));
+      const locations = waypoints.map(([lat,lon]) => ({ latitude: lat, longitude: lon }));
       const res = await fetch('https://api.open-elevation.com/api/v1/lookup', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -116,7 +108,7 @@
 
     function calculateGainLoss(elevs) {
       let gain=0, loss=0;
-      for (let i=1; i<elevs.length; i++){
+      for (let i=1; i<elevs.length; i++) {
         const d = elevs[i] - elevs[i-1];
         if (d>0) gain += d; else loss += Math.abs(d);
       }
@@ -149,8 +141,7 @@
     }
 
     // --- Form submission handler ---
-    document.getElementById('route-form')
-      .addEventListener('submit', async e => {
+    document.getElementById('route-form').addEventListener('submit', async e => {
       e.preventDefault();
       const sLat = parseFloat(e.target['start-lat'].value);
       const sLon = parseFloat(e.target['start-lon'].value);
@@ -160,7 +151,14 @@
       out.innerHTML = '<p>Fetching route…</p>';
 
       try {
-        const waypoints = await getRouteWaypoints(sLat,sLon,eLat,eLon);
+        const waypoints = await getRouteWaypoints(sLat, sLon, eLat, eLon);
+
+        // Draw route polyline
+        if (routeLine) map.removeLayer(routeLine);
+        const latlngs = waypoints.map(([lat, lon]) => [lat, lon]);
+        routeLine = L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(map);
+        map.fitBounds(routeLine.getBounds());
+
         out.innerHTML = `<p>Waypoints fetched: ${waypoints.length}</p>`;
         const elevs = await getElevations(waypoints);
         out.innerHTML += `<p>Elevation points: ${elevs.length}</p>`;
