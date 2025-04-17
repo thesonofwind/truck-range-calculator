@@ -2,7 +2,7 @@
 
 (function(window) {
   /**
-   * Compute a multiplier based on climate normals.
+   * Calculate weather impact multiplier from climate normals.
    * climate: {temp, precipitation, snow, wind}
    */
   function calculateWeatherImpact(climate) {
