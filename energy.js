@@ -4,7 +4,7 @@
   // Haversine formula for distance between two coordinates (meters)
   function haversine(lat1, lon1, lat2, lon2) {
     const toRad = x => x * Math.PI / 180;
-    const R = 6371000;
+    const R = 6371000; // Earth radius in meters
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a = Math.sin(dLat/2) ** 2 +
@@ -13,7 +13,7 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // Total distance (m)
+  // Total distance (meters)
   function totalDistance(waypoints) {
     let d = 0;
     for (let i = 1; i < waypoints.length; i++) {
