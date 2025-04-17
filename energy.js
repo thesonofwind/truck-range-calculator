@@ -19,7 +19,7 @@
     for (let i = 1; i < waypoints.length; i++) {
       d += haversine(
         waypoints[i-1][0], waypoints[i-1][1],
-        waypoints[i][0],   waypoints[i][1]
+        waypoints[i][0], waypoints[i][1]
       );
     }
     return d;
