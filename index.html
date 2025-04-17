@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Route Elevation & Energy Analysis</title>
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 1em; }
     #map { width: 100%; height: 400px; margin-bottom: 1em; }
@@ -21,84 +18,52 @@
 </head>
 <body>
   <h1>Route Elevation & Energy Analysis</h1>
-
-  <!-- Map + Mode Selector -->
   <div id="map"></div>
   <div>
     <label><input type="radio" name="mode" value="start" checked> Select Start</label>
     <label><input type="radio" name="mode" value="end"> Select End</label>
   </div>
-
-  <!-- Coordinate & Parameter Inputs -->
   <form id="route-form">
-    <!-- Coordinates -->
     <fieldset>
       <legend>Route Coordinates</legend>
       <div><label for="start-lat">Start Latitude:</label>
-        <input id="start-lat" name="start-lat" type="number" step="any" value="37.7749">
-      </div>
+        <input id="start-lat" name="start-lat" type="number" step="any" value="37.7749"></div>
       <div><label for="start-lon">Start Longitude:</label>
-        <input id="start-lon" name="start-lon" type="number" step="any" value="-122.4194">
-      </div>
+        <input id="start-lon" name="start-lon" type="number" step="any" value="-122.4194"></div>
       <div><label for="end-lat">End Latitude:</label>
-        <input id="end-lat" name="end-lat" type="number" step="any" value="34.0522">
-      </div>
+        <input id="end-lat" name="end-lat" type="number" step="any" value="34.0522"></div>
       <div><label for="end-lon">End Longitude:</label>
-        <input id="end-lon" name="end-lon" type="number" step="any" value="-118.2437">
-      </div>
+        <input id="end-lon" name="end-lon" type="number" step="any" value="-118.2437"></div>
     </fieldset>
-
-    <!-- Energy Model Parameters -->
     <fieldset>
       <legend>Truck Energy Parameters</legend>
-      <div>
-        <label for="mass">Mass (kg):</label>
-        <input id="mass" name="mass" type="number" step="1" value="30000">
-      </div>
-      <div>
-        <label for="speed">Speed (m/s):</label>
-        <input id="speed" name="speed" type="number" step="0.1" value="20">
-      </div>
-      <div>
-        <label for="rollingResistance">Rolling Resistance (Crr):</label>
-        <input id="rollingResistance" name="rollingResistance" type="number" step="0.001" value="0.007">
-      </div>
-      <div>
-        <label for="dragCoef">Drag Coefficient (Cd):</label>
-        <input id="dragCoef" name="dragCoef" type="number" step="0.01" value="0.6">
-      </div>
-      <div>
-        <label for="frontalArea">Frontal Area (m²):</label>
-        <input id="frontalArea" name="frontalArea" type="number" step="0.1" value="8">
-      </div>
-      <div>
-        <label for="airDensity">Air Density (kg/m³):</label>
-        <input id="airDensity" name="airDensity" type="number" step="0.01" value="1.225">
-      </div>
-      <div>
-        <label for="drivetrainEff">Drivetrain Eff. (0–1):</label>
-        <input id="drivetrainEff" name="drivetrainEff" type="number" step="0.01" value="0.9">
-      </div>
+      <div><label for="mass">Mass (kg):</label>
+        <input id="mass" name="mass" type="number" step="1" value="30000"></div>
+      <div><label for="speed_kmh">Speed (km/h):</label>
+        <input id="speed_kmh" name="speed_kmh" type="number" step="0.1" value="72"></div>
+      <div><label for="rollingResistance">Rolling Resistance (Crr):</label>
+        <input id="rollingResistance" name="Crr" type="number" step="0.001" value="0.007"></div>
+      <div><label for="dragCoef">Drag Coefficient (Cd):</label>
+        <input id="dragCoef" name="Cd" type="number" step="0.01" value="0.6"></div>
+      <div><label for="frontalArea">Frontal Area (m²):</label>
+        <input id="frontalArea" name="A" type="number" step="0.1" value="8"></div>
+      <div><label for="airDensity">Air Density (kg/m³):</label>
+        <input id="airDensity" name="rho" type="number" step="0.01" value="1.225"></div>
+      <div><label for="drivetrainEff">Drivetrain Eff. (0–1):</label>
+        <input id="drivetrainEff" name="eff" type="number" step="0.01" value="0.9"></div>
+      <div><label for="regenEff">Regen Efficiency (0–1):</label>
+        <input id="regenEff" name="regenEff" type="number" step="0.01" value="0.6"></div>
     </fieldset>
-
     <button type="submit">Analyze Route & Energy</button>
   </form>
-
   <div id="results"></div>
   <canvas id="elevationChart" width="800" height="400"></canvas>
-
-  <!-- External Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="energy.js"></script>
-
   <script>
-    // --- Leaflet map setup ---
     const map = L.map('map').setView([37.7749, -122.4194], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
     let startMarker, endMarker, routeLine;
 
     map.on('click', e => {
@@ -106,24 +71,19 @@
       const mode = document.querySelector('input[name="mode"]:checked').value;
       if (mode === 'start') {
         startMarker && map.removeLayer(startMarker);
-        startMarker = L.marker([lat, lng]).addTo(map)
-                          .bindPopup('Start').openPopup();
+        startMarker = L.marker([lat, lng]).addTo(map).bindPopup('Start').openPopup();
         document.getElementById('start-lat').value = lat.toFixed(6);
         document.getElementById('start-lon').value = lng.toFixed(6);
       } else {
         endMarker && map.removeLayer(endMarker);
-        endMarker = L.marker([lat, lng]).addTo(map)
-                        .bindPopup('End').openPopup();
+        endMarker = L.marker([lat, lng]).addTo(map).bindPopup('End').openPopup();
         document.getElementById('end-lat').value = lat.toFixed(6);
         document.getElementById('end-lon').value = lng.toFixed(6);
       }
     });
 
-    // --- API & plotting functions (same as before) ---
-    async function getRouteWaypoints(sLat,sLon,eLat,eLon) {
-      const url = `https://router.project-osrm.org/route/v1/driving/`
-                + `${sLon},${sLat};${eLon},${eLat}`
-                + `?overview=full&geometries=geojson`;
+    async function getRouteWaypoints(sLat, sLon, eLat, eLon) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
       const data = await res.json();
@@ -131,91 +91,76 @@
     }
 
     async function getElevations(waypoints) {
-      const locs = waypoints.map(([lat,lon])=>({ latitude:lat, longitude:lon }));
+      const locations = waypoints.map(([lat,lon]) => ({ latitude: lat, longitude: lon }));
       const res = await fetch('https://api.open-elevation.com/api/v1/lookup', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ locations: locs })
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ locations })
       });
       if (!res.ok) throw new Error(`Elevation API error: ${res.status}`);
       const data = await res.json();
-      return data.results.map(r=>r.elevation);
+      return data.results.map(r => r.elevation);
     }
 
     function calculateGainLoss(elevs) {
       let gain=0, loss=0;
-      for (let i=1;i<elevs.length;i++){
-        const d=elevs[i]-elevs[i-1];
-        d>0? gain+=d : loss+=Math.abs(d);
+      for (let i=1; i<elevs.length; i++) {
+        const d = elevs[i] - elevs[i-1];
+        if (d>0) gain += d; else loss += Math.abs(d);
       }
       return { gain, loss };
     }
 
     let chart;
     function plotElevation(elevs) {
-      const ctx=document.getElementById('elevationChart').getContext('2d');
-      const labels=elevs.map((_,i)=>i);
-      if(chart) chart.destroy();
-      chart=new Chart(ctx,{
-        type:'line',
-        data:{ labels, datasets:[{
-          label:'Elevation (m)', data:elevs, fill:false, tension:0.1
-        }]},
-        options:{ scales:{
-          x:{ title:{ display:true, text:'Waypoint Index' } },
-          y:{ title:{ display:true, text:'Elevation (m)' } }
-        }}
-      });
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      const labels = elevs.map((_,i) => i);
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Elevation (m)', data:elevs, fill:false, tension:0.1 }]}, options:{ scales:{ x:{ title:{ display:true, text:'Waypoint Index'} }, y:{ title:{ display:true, text:'Elevation (m)'} } } } });
     }
 
-    // --- Form handler with dynamic energy parameters ---
-    document.getElementById('route-form')
-      .addEventListener('submit', async e => {
+    document.getElementById('route-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const form=e.target;
-      const sLat=+form['start-lat'].value,
-            sLon=+form['start-lon'].value,
-            eLat=+form['end-lat'].value,
-            eLon=+form['end-lon'].value;
-      const out=document.getElementById('results');
-      out.innerHTML='<p>Computing route & energy…</p>';
+      const sLat = parseFloat(e.target['start-lat'].value);
+      const sLon = parseFloat(e.target['start-lon'].value);
+      const eLat = parseFloat(e.target['end-lat'].value);
+      const eLon = parseFloat(e.target['end-lon'].value);
+      const params = {
+        mass:    +e.target['mass'].value,
+        speed_kmh:+e.target['speed_kmh'].value,
+        Crr:     +e.target['Crr'].value,
+        Cd:      +e.target['Cd'].value,
+        A:       +e.target['A'].value,
+        rho:     +e.target['rho'].value,
+        eff:     +e.target['eff'].value,
+        regenEff:+e.target['regenEff'].value
+      };
+      const out = document.getElementById('results');
+      out.innerHTML = '<p>Fetching route…</p>';
 
       try {
-        const waypoints=await getRouteWaypoints(sLat,sLon,eLat,eLon);
-
-        // draw route
-        if(routeLine) map.removeLayer(routeLine);
-        const path=waypoints.map(([lat,lon])=>[lat,lon]);
-        routeLine=L.polyline(path,{color:'blue',weight:4}).addTo(map);
+        const waypoints = await getRouteWaypoints(sLat, sLon, eLat, eLon);
+        if (routeLine) map.removeLayer(routeLine);
+        const latlngs = waypoints.map(([lat, lon]) => [lat, lon]);
+        routeLine = L.polyline(latlngs, { color:'blue', weight:4 }).addTo(map);
         map.fitBounds(routeLine.getBounds());
 
-        out.innerHTML=`<p>Waypoints: ${waypoints.length}</p>`;
-        const elevs=await getElevations(waypoints);
-        out.innerHTML+=`<p>Elevations: ${elevs.length}</p>`;
-        const { gain, loss }=calculateGainLoss(elevs);
-        out.innerHTML+=`<p>Gain: ${gain.toFixed(2)} m, Loss: ${loss.toFixed(2)} m</p>`;
-        plotElevation(elevs);
+        out.innerHTML = `<p>Waypoints: ${waypoints.length}</p>`;
+        const elevs = await getElevations(waypoints);
+        out.innerHTML += `<p>Elevations: ${elevs.length}</p>`;
+        const { gain, loss } = calculateGainLoss(elevs);
+        out.innerHTML += `<p>Gain: ${gain.toFixed(1)} m, Loss: ${loss.toFixed(1)} m</p>`;
 
-        // read parameters
-        const params = {
-          mass:              +form['mass'].value,
-          speed:             +form['speed'].value,
-          rollingResistance: +form['rollingResistance'].value,
-          dragCoef:          +form['dragCoef'].value,
-          frontalArea:       +form['frontalArea'].value,
-          airDensity:        +form['airDensity'].value,
-          drivetrainEff:     +form['drivetrainEff'].value
-        };
-
-        // energy calculation
+        // Energy calculation
         const res = calculateEnergy(waypoints, elevs, params);
-        const kWh = res.Ejoules / 3.6e6;
-        const km  = (res.distance_m/1000).toFixed(1);
-        out.innerHTML+=
-          `<p>Energy: ${kWh.toFixed(2)} kWh over ${km} km</p>`;
+        const km   = (res.distance_m/1000).toFixed(2);
+        const kWh  = (res.Ejoules/3.6e6).toFixed(2);
+        const cpkm = res.kWh_per_km.toFixed(3);
+        out.innerHTML += `<p>Distance: ${km} km</p>`;
+        out.innerHTML += `<p>Total Energy: ${kWh} kWh</p>`;
+        out.innerHTML += `<p>Consumption: ${cpkm} kWh/km</p>`;
 
+        plotElevation(elevs);
       } catch(err) {
-        out.innerHTML=`<p style="color:red">Error: ${err.message}</p>`;
+        out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
       }
     });
   </script>
