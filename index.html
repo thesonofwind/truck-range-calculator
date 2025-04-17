@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Route Elevation Analysis</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 1em; }
+    form div { margin-bottom: 0.5em; }
+    label { display: inline-block; width: 140px; }
+    #results p { margin: 0.2em 0; }
+    #elevationChart { margin-top: 1em; }
+  </style>
+  <!-- Chart.js for plotting -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- https://www.chartjs.org/ -->
+</head>
+<body>
+  <h1>Route Elevation Analysis</h1>
+  <form id="route-form">
+    <div><label for="start-lat">Start Latitude:</label>
+      <input id="start-lat" type="number" step="any" value="37.7749">
+    </div>
+    <div><label for="start-lon">Start Longitude:</label>
+      <input id="start-lon" type="number" step="any" value="-122.4194">
+    </div>
+    <div><label for="end-lat">End Latitude:</label>
+      <input id="end-lat" type="number" step="any" value="34.0522">
+    </div>
+    <div><label for="end-lon">End Longitude:</label>
+      <input id="end-lon" type="number" step="any" value="-118.2437">
+    </div>
+    <button type="submit">Analyze Route</button>
+  </form>
+
+  <div id="results"></div>
+  <canvas id="elevationChart" width="800" height="400"></canvas>
+
+  <script>
+    async function getRouteWaypoints(startLat, startLon, endLat, endLon) {
+      const url = `https://router.project-osrm.org/route/v1/driving/`
+        + `${startLon},${startLat};${endLon},${endLat}`
+        + `?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
+      const json = await res.json();
+      return json.routes[0].geometry.coordinates
+        .map(pt => [pt[1], pt[0]]);
+    }
+
+    async function getElevations(waypoints) {
+      const locations = waypoints.map(([lat,lon])=>({ latitude: lat, longitude: lon }));
+      const res = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locations })
+      });
+      if (!res.ok) throw new Error(`Elevation API error: ${res.status}`);
+      const json = await res.json();
+      return json.results.map(r=>r.elevation);
+    }
+
+    function calculateGainLoss(elevations) {
+      let gain = 0, loss = 0;
+      for (let i = 1; i < elevations.length; i++) {
+        const d = elevations[i] - elevations[i-1];
+        if (d>0) gain += d; else loss += -d;
+      }
+      return { gain, loss };
+    }
+
+    let chart;  // to hold Chart.js instance
+    function plotElevation(elevations) {
+      const ctx = document.getElementById('elevationChart').getContext('2d');
+      const labels = elevations.map((_,i)=>i);
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Elevation (m)',
+            data: elevations,
+            fill: false,
+            tension: 0.1
+          }]
+        },
+        options: {
+          scales: {
+            x: { title: { display: true, text: 'Waypoint Index' } },
+            y: { title: { display: true, text: 'Elevation (m)' } }
+          }
+        }
+      });
+    }
+
+    document.getElementById('route-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const startLat = parseFloat(document.getElementById('start-lat').value);
+      const startLon = parseFloat(document.getElementById('start-lon').value);
+      const endLat   = parseFloat(document.getElementById('end-lat').value);
+      const endLon   = parseFloat(document.getElementById('end-lon').value);
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `<p>Fetching route...</p>`;
+
+      try {
+        const waypoints = await getRouteWaypoints(startLat, startLon, endLat, endLon);
+        resultsDiv.innerHTML = `<p>Waypoints: ${waypoints.length} fetched.</p>`;
+        const elevations = await getElevations(waypoints);
+        resultsDiv.innerHTML += `<p>Elevations: ${elevations.length} points.</p>`;
+
+        const { gain, loss } = calculateGainLoss(elevations);
+        resultsDiv.innerHTML += 
+          `<p>Total Gain: ${gain.toFixed(2)} m</p>`
+          + `<p>Total Loss: ${loss.toFixed(2)} m</p>`;
+
+        plotElevation(elevations);
+      } catch (err) {
+        resultsDiv.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
