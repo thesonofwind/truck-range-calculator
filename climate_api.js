@@ -3,8 +3,8 @@
 (function(window) {
   /**
    * Fetch historical climate normals (1991–2020) for a single lat/lon via Open‑Meteo API
-   * Returns data.monthly object with arrays: month, temperature_2m_mean,
-   * precipitation_sum, snowfall_sum, windspeed_10m_mean
+   * Returns an object with arrays: time, temperature_2m_mean, precipitation_sum,
+   * snowfall_sum, windspeed_10m_mean
    */
   async function fetchClimateNormals(lat, lon) {
     const vars = [
@@ -25,7 +25,7 @@
 
     if (
       !data.monthly ||
-      !Array.isArray(data.monthly.month) ||
+      !Array.isArray(data.monthly.time) ||
       !Array.isArray(data.monthly.temperature_2m_mean)
     ) {
       throw new Error('Invalid climate data structure.');
@@ -35,8 +35,8 @@
 
   /**
    * Compute average normals for the route and selected month
-   * waypoints: Array<[lat,lon]>
-   * month: 1–12
+   * @param {Array<[lat,lon]>} waypoints
+   * @param {number} month 1–12
    */
   async function getRouteClimate(waypoints, month, samples = 5) {
     const step = Math.max(1, Math.floor(waypoints.length / samples));
@@ -46,22 +46,24 @@
     for (let i = 0; i < waypoints.length; i += step) {
       const [lat, lon] = waypoints[i];
       const monthly = await fetchClimateNormals(lat, lon);
-      const idx = monthly.month.indexOf(month);
+      const idx = monthly.time.findIndex(
+        (t) => parseInt(t.split('-')[1], 10) === month
+      );
       if (idx >= 0) {
-        acc.temp += (monthly.temperature_2m_mean[idx] || 0);
-        acc.precipitation += (monthly.precipitation_sum[idx] || 0);
-        acc.snow += (monthly.snowfall_sum[idx] || 0);
-        acc.wind += (monthly.windspeed_10m_mean[idx] || 0);
+        acc.temp          += (monthly.temperature_2m_mean[idx] || 0);
+        acc.precipitation += (monthly.precipitation_sum[idx]   || 0);
+        acc.snow          += (monthly.snowfall_sum[idx]        || 0);
+        acc.wind          += (monthly.windspeed_10m_mean[idx]  || 0);
         cnt++;
       }
     }
 
     if (cnt === 0) throw new Error(`No climate data for month ${month}.`);
     return {
-      temp: acc.temp / cnt,
+      temp:          acc.temp / cnt,
       precipitation: acc.precipitation / cnt,
-      snow: acc.snow / cnt,
-      wind: acc.wind / cnt
+      snow:          acc.snow / cnt,
+      wind:          acc.wind / cnt
     };
   }
 
