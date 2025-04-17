@@ -13,7 +13,7 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // Sum up segment distances
+  // Total distance (m) along waypoints
   function totalDistance(waypoints) {
     let d = 0;
     for (let i = 1; i < waypoints.length; i++) {
@@ -22,67 +22,71 @@
         waypoints[i][0],   waypoints[i][1]
       );
     }
-    return d; // in meters
+    return d;
   }
 
   /**
-   * Calculate energy consumption (Joules) for an EV truck over a route.
+   * Calculate energy consumption (Joules) for an EV truck over a route,
+   * including regenerative braking recovery.
    *
-   * @param {Array} waypoints  Array of [lat, lon] pairs.
-   * @param {Array} elevations Array of elevations (m) at each waypoint.
-   * @param {Object} opts      Optional parameters:
-   *    mass               (kg) default 30000 :contentReference[oaicite:0]{index=0}
-   *    rollingResistance  (unitless) Crr default 0.007 :contentReference[oaicite:1]{index=1}
-   *    dragCoef           (unitless) Cd default 0.6 :contentReference[oaicite:2]{index=2}
-   *    frontalArea        (m²) default 8
-   *    airDensity         (kg/m³) default 1.225
-   *    speed              (m/s) default 20 (≈ 72 km/h)
-   *    drivetrainEff      (0–1) default 0.9
-   *
-   * @returns {Object} { Ejoules, distance_m, params }
+   * @param {Array} waypoints       Array of [lat, lon] pairs.
+   * @param {Array} elevations      Array of elevations (m) at each waypoint.
+   * @param {Object} opts           Optional parameters:
+   *    mass (kg), speed_kmh (km/h), Crr, Cd, A, rho, eff, regenEff
+   *    defaults: mass=30000, speed_kmh=72, Crr=0.007, Cd=0.6, A=8,
+   *              rho=1.225, eff=0.9, regenEff=0.6
+   * @returns {Object} {
+   *    Ejoules: total Joules consumed,
+   *    distance_m: total route length (m),
+   *    kWh_per_km: consumption in kWh/km,
+   *    params: used parameters
+   * }
    */
-  function calculateEnergy(waypoints, elevations, opts={}) {
+  function calculateEnergy(waypoints, elevations, opts = {}) {
     const p = {
-      mass: opts.mass             || 30000,
-      g:    9.81,
-      rollingResistance: opts.rollingResistance || 0.007,
-      dragCoef:          opts.dragCoef          || 0.6,
-      frontalArea:       opts.frontalArea       || 8,
-      airDensity:        opts.airDensity        || 1.225,
-      speed:             opts.speed             || 20,
-      drivetrainEff:     opts.drivetrainEff     || 0.9
+      mass: opts.mass || 30000,
+      g: 9.81,
+      Crr: opts.Crr || 0.007,
+      Cd: opts.Cd || 0.6,
+      A: opts.A || 8,
+      rho: opts.rho || 1.225,
+      speed: ((opts.speed_kmh || 72) / 3.6), // km/h to m/s
+      eff: opts.eff || 0.9,
+      regenEff: opts.regenEff != null ? opts.regenEff : 0.6
     };
 
-    // 1) total distance
-    const D = totalDistance(waypoints); // m
+    // distance
+    const D = totalDistance(waypoints);
 
-    // 2) elevation gain
-    let gain = 0;
+    // elevation gain & loss
+    let gain = 0, loss = 0;
     for (let i = 1; i < elevations.length; i++) {
       const dH = elevations[i] - elevations[i-1];
       if (dH > 0) gain += dH;
+      else loss += Math.abs(dH);
     }
 
-    // 3) potential energy: m * g * Δh
-    const Egrav = p.mass * p.g * gain;
+    // gravitational term net of regen
+    const Egrav = p.mass * p.g * (gain - p.regenEff * loss);
+    // rolling resistance
+    const Eroll = p.Crr * p.mass * p.g * D;
+    // aerodynamic drag
+    const Edrag = 0.5 * p.rho * p.Cd * p.A * p.speed**2 * D;
+    // total with drivetrain efficiency
+    const Etotal = (Egrav + Eroll + Edrag) / p.eff;
 
-    // 4) rolling resistance: Crr * m * g * D
-    const Eroll = p.rollingResistance * p.mass * p.g * D;
-
-    // 5) aerodynamic drag: ½ * ρ * Cd * A * v² * D
-    const Edrag = 0.5 * p.airDensity * p.dragCoef * p.frontalArea * (p.speed**2) * D;
-
-    // 6) total, accounting for drivetrain efficiency
-    const Etotal = (Egrav + Eroll + Edrag) / p.drivetrainEff;
+    // kWh per km
+    const kWh = Etotal / 3.6e6;
+    const km = D / 1000;
+    const kWhpkm = kWh / km;
 
     return {
-      Ejoules:    Etotal,
+      Ejoules: Etotal,
       distance_m: D,
-      params:     p
+      kWh_per_km: kWhpkm,
+      params: p
     };
   }
 
-  // Expose globally
   window.calculateEnergy = calculateEnergy;
-
 })(window);
