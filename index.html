@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Route Elevation & Energy Analysis</title>
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>Route Elevation & Climate‐Aware Energy</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 1em; }
     #map { width: 100%; height: 400px; margin-bottom: 1em; }
@@ -18,7 +20,7 @@
   </style>
 </head>
 <body>
-  <h1>Route Elevation & Energy Analysis</h1>
+  <h1>Route Elevation & Climate‐Aware Energy</h1>
 
   <div id="map"></div>
   <div>
@@ -40,7 +42,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Weather Settings</legend>
+      <legend>Historical Climate Settings</legend>
       <div><label for="month">Month:</label>
         <select id="month">
           <option value="1">January</option>
@@ -88,7 +90,7 @@
   <!-- Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Modules (load in this order) -->
+  <!-- Modules -->
   <script src="energy.js"></script>
   <script src="weather.js"></script>
   <script src="climate_api.js"></script>
@@ -96,105 +98,13 @@
   <script>
     let chart;
     const map = L.map("map").setView([37.7749, -122.4194], 5);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors" }).addTo(map);
 
     let startMarker, endMarker, routeLine;
-
-    map.on("click", (e) => {
+    map.on("click", e => {
       const { lat, lng } = e.latlng;
       const mode = document.querySelector('input[name="mode"]:checked').value;
       if (mode === "start") {
         startMarker && map.removeLayer(startMarker);
         startMarker = L.marker([lat, lng]).addTo(map).bindPopup("Start").openPopup();
         document.getElementById("start-lat").value = lat.toFixed(6);
-        document.getElementById("start-lon").value = lng.toFixed(6);
-      } else {
-        endMarker && map.removeLayer(endMarker);
-        endMarker = L.marker([lat, lng]).addTo(map).bindPopup("End").openPopup();
-        document.getElementById("end-lat").value = lat.toFixed(6);
-        document.getElementById("end-lon").value = lng.toFixed(6);
-      }
-    });
-
-    document.getElementById("route-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const sLat = +document.getElementById("start-lat").value;
-      const sLon = +document.getElementById("start-lon").value;
-      const eLat = +document.getElementById("end-lat").value;
-      const eLon = +document.getElementById("end-lon").value;
-      const month = +document.getElementById("month").value;
-      const params = {
-        mass:      +document.getElementById("mass").value,
-        speed_kmh: +document.getElementById("speed_kmh").value,
-        Crr:       +document.getElementById("Crr").value,
-        Cd:        +document.getElementById("Cd").value,
-        A:         +document.getElementById("A").value,
-        rho:       +document.getElementById("rho").value,
-        eff:       +document.getElementById("eff").value,
-        regenEff:  +document.getElementById("regenEff").value
-      };
-      const out = document.getElementById("results");
-      out.innerHTML = "<p>Calculating…</p>";
-
-      try {
-        // Fetch route
-        const rRes = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`
-        );
-        if (!rRes.ok) throw new Error(`OSRM error: ${rRes.status}`);
-        const rData = await rRes.json();
-        const waypoints = rData.routes[0].geometry.coordinates.map((pt) => [pt[1], pt[0]]);
-
-        routeLine && map.removeLayer(routeLine);
-        routeLine = L.polyline(waypoints, { color: "blue", weight: 4 }).addTo(map);
-        map.fitBounds(routeLine.getBounds());
-
-        // Elevations
-        const eRes = await fetch("https://api.open-elevation.com/api/v1/lookup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locations: waypoints.map(([lat, lon]) => ({ latitude: lat, longitude: lon })) })
-        });
-        if (!eRes.ok) throw new Error(`Elevation error: ${eRes.status}`);
-        const eData = await eRes.json();
-        const elevations = eData.results.map((r) => r.elevation);
-
-        // Gain/Loss
-        let gain=0, loss=0;
-        for (let i=1; i<elevations.length; i++){ const d=elevations[i]-elevations[i-1]; d>0?gain+=d:loss+=Math.abs(d);}  
-        out.innerHTML = `<p>Waypoints: ${waypoints.length}</p><p>Gain: ${gain.toFixed(1)} m, Loss: ${loss.toFixed(1)} m</p>`;
-
-        // Base energy
-        const base = calculateEnergy(waypoints, elevations, params);
-
-        // Climate normals for selected month
-        const climate = await getRouteClimate(waypoints, month);
-        out.innerHTML += `<p>Month ${month} Avg: ${climate.temp.toFixed(1)} °C, ${climate.precipitation.toFixed(1)} mm rain, ${climate.snow.toFixed(1)} mm snow, ${climate.wind.toFixed(1)} m/s wind</p>`;
-
-        // Weather impact factor
-        const factor = calculateWeatherImpact(climate);
-        const adjustedJ = base.Ejoules * factor;
-        const totalKwh = adjustedJ / 3.6e6;
-        const distKm = base.distance_m / 1000;
-        const cpkm = (totalKwh / distKm).toFixed(3);
-        out.innerHTML += `<p>Adjusted Energy: ${totalKwh.toFixed(2)} kWh</p><p><strong>Consumption:</strong> ${cpkm} kWh/km</p>`;
-
-        // Plot elevation profile
-        const ctx = document.getElementById('elevationChart').getContext('2d');
-        const labels = elevations.map((_, i) => i);
-        if (chart) chart.destroy();
-        chart = new Chart(ctx, {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Elevation (m)', data: elevations, fill: false, tension: 0.1 }] },
-          options: { scales: { x: { title: { display: true, text: 'Waypoint Index' } }, y: { title: { display: true, text: 'Elevation (m)' } } } }
-        });
-      } catch (err) {
-        out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
-        console.error(err);
-      }
-    });
-  </script>
-</body>
-</html>
